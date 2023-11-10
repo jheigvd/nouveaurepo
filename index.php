@@ -5,7 +5,6 @@
 // "http://localhost:8888/comem-archidep-php-todo-exercise/", then BASE_URL
 // should be "/comem-archidep-php-todo-exercise/". If you are accessing the
 // application at "http://localhost:8888", then BASE_URL should be "/".
-// define('BASE_URL', '/');
 define('BASE_URL', getenv('TODOLIST_BASE_URL') ?: '/');
 
 // Database connection parameters.
@@ -15,12 +14,7 @@ define('DB_NAME', getenv('TODOLIST_DB_NAME') ?: 'todolist');
 define('DB_HOST', getenv('TODOLIST_DB_HOST') ?: '127.0.0.1');
 define('DB_PORT', getenv('TODOLIST_DB_PORT') ?: '3306');
 
-try {
-  $db = new PDO('mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME, DB_USER, DB_PASS);
-  $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-  die("Database connection failed: " . $e->getMessage());
-}
+$db = new PDO('mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME, DB_USER, DB_PASS);
 $items = array();
 
 if (isset($_POST['action'])) {
@@ -30,15 +24,16 @@ if (isset($_POST['action'])) {
      * Insert a new task into the database, then redirect to the base URL.
      */
     case 'new':
+
       $title = $_POST['title'];
       if ($title && $title !== '') {
-        $insertQuery = 'INSERT INTO todo (title, done, created_at) VALUES (:title, 0, NOW())';
-        $stmt = $db->prepare($insertQuery);
-        $stmt->bindParam(':title', $title);
-        if (!$stmt->execute()) {
-          die(print_r($stmt->errorInfo(), true));
+        $insert = $db->prepare('INSERT INTO todo VALUES(NULL, :title, FALSE, CURRENT_TIMESTAMP)');
+        $insert->bindParam('title', $title);
+        if (!$insert->execute()) {
+          die(print_r($db->errorInfo(), true));
         }
       }
+
       header('Location: ' . BASE_URL);
       die();
 
@@ -47,53 +42,44 @@ if (isset($_POST['action'])) {
        * then redirect to the base URL.
        */
     case 'toggle':
+
       $id = $_POST['id'];
       if (is_numeric($id)) {
-        $updateQuery = 'UPDATE todo SET done = 1 - done WHERE id = :id';
-        $stmt = $db->prepare($updateQuery);
-        $stmt->bindParam(':id', $id);
-        if (!$stmt->execute()) {
-          die(print_r($stmt->errorInfo(), true));
+        $updateQuery = 'UPDATE todo SET done = !done WHERE id = ' . $id;
+        if (!$db->query($updateQuery)) {
+          die(print_r($db->errorInfo(), true));
         }
       }
+
       header('Location: ' . BASE_URL);
       die();
-
 
       /**
        * Delete a task, then redirect to the base URL.
        */
     case 'delete':
+
       $id = $_POST['id'];
       if (is_numeric($id)) {
-        $deleteQuery = 'DELETE FROM todo WHERE id = :id';
-        $stmt = $db->prepare($deleteQuery);
-        $stmt->bindParam(':id', $id);
-        if (!$stmt->execute()) {
-          die(print_r($stmt->errorInfo(), true));
+        $deleteQuery = 'DELETE FROM todo WHERE id = ' . $id;
+        if (!$db->query($deleteQuery)) {
+          die(print_r($db->errorInfo(), true));
         }
       }
+
       header('Location: ' . BASE_URL);
       die();
-
-
-
-
 
     default:
       break;
   }
 }
 
-
-
-
-
 /**
  * Select all tasks from the database.
  */
-$selectQuery = 'SELECT * FROM todo ORDER BY created_at DESC';
-$items = $db->query($selectQuery)->fetchAll();
+$selectQuery = 'SELECT * FROM todo ORDER BY created_at DESC;';
+$items = $db->query($selectQuery);
 ?>
 
 <html>
@@ -150,7 +136,7 @@ $items = $db->query($selectQuery)->fetchAll();
       <?php foreach ($items as $item) : ?>
         <div class='list-group-item d-flex justify-content-between align-items-center<?php if ($item['done']) : ?> list-group-item-success<?php else : ?> list-group-item-warning<?php endif; ?>'>
 
-          <div class='title'><?= $item['title'] ?></div>
+          <div class='title'><?= htmlspecialchars($item['title']) ?></div>
 
           <!-- Todo item controls -->
           <form action='<?= BASE_URL ?>' method='post'>
